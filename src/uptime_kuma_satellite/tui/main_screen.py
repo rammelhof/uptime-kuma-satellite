@@ -1,0 +1,272 @@
+"""Textual TUI for Uptime Kuma Satellite."""
+
+from __future__ import annotations
+
+import logging
+from datetime import datetime
+from pathlib import Path
+
+from textual import on
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Container, Horizontal, Vertical
+from textual.screen import Screen
+from textual.widgets import (
+    Button,
+    DataTable,
+    Input,
+    Label,
+    Select,
+    Static,
+)
+
+from ..config import ConfigManager
+from ..models import MonitorConfig, MonitorResult, ServiceConfig, MonitorStatus
+from ..monitors import MonitorRegistry
+from ..client import UptimeKumaClient
+from .editor_screen import MonitorEditorScreen
+
+logger = logging.getLogger("uks.tui")
+
+
+class MainScreen(Screen):
+    """Main TUI screen with monitor status and controls."""
+
+    BINDINGS = [
+        Binding("ctrl+q", "quit", "Quit"),
+        Binding("ctrl+r", "run_all", "Run All"),
+        Binding("ctrl+s", "save_config", "Save Config"),
+        Binding("ctrl+a", "add_monitor", "Add Monitor"),
+        Binding("ctrl+e", "edit_monitor", "Edit Monitor"),
+        Binding("ctrl+d", "delete_monitor", "Delete Monitor"),
+        Binding("ctrl+t", "toggle_monitor", "Toggle Monitor"),
+        Binding("ctrl+l", "load_config", "Load Config"),
+    ]
+
+    def __init__(self, config_path: Path | None = None) -> None:
+        super().__init__()
+        self.config_mgr = ConfigManager(config_path)
+        self.config: ServiceConfig | None = None
+        self._results: dict[str, dict] = {}
+
+    def compose(self) -> ComposeResult:
+        with Container():
+            yield Static("Uptime Kuma Satellite", id="title")
+            
+            # Global config editor
+            with Horizontal(id="global-config"):
+                with Vertical(id="config-left"):
+                    yield Label("Push URL:", id="label-push-url")
+                    yield Input(id="push-url-input")
+                with Vertical(id="config-right"):
+                    yield Label("Hostname:", id="label-hostname")
+                    yield Input(id="hostname-input")
+                    yield Label("Interval (seconds):", id="label-interval")
+                    yield Input(value="60", id="interval-input")
+            
+            yield Label(id="status-bar")
+            yield DataTable(id="monitors-table")
+            yield Label(id="message-bar")
+            yield Static(
+                "Ctrl+q Quit  |  Ctrl+r Run All  |  Ctrl+s Save  |  Ctrl+l Load  |  Ctrl+a Add  |  Ctrl+e Edit  |  Ctrl+d Delete  |  Ctrl+t Toggle  |  ↑↓ Navigate  |  Enter Select  |  Esc Back",
+                id="help-footer",
+            )
+
+    def on_mount(self) -> None:
+        self._load_config()
+        self._setup_table()
+
+    def _load_config(self) -> None:
+        try:
+            self.config = self.config_mgr.load()
+            if self.config.push_url:
+                self._populate_config_fields()
+                self._update_status_bar()
+        except Exception as e:
+            self._set_message(f"Error loading config: {e}")
+
+    def _populate_config_fields(self) -> None:
+        """Populate the global config input fields."""
+        if not self.config:
+            return
+        push_url_input = self.query_one("#push-url-input", Input)
+        push_url_input.value = self.config.push_url
+        hostname_input = self.query_one("#hostname-input", Input)
+        hostname_input.value = self.config.hostname
+        interval_input = self.query_one("#interval-input", Input)
+        interval_input.value = str(self.config.default_interval)
+
+    def _setup_table(self) -> None:
+        table = self.query_one("#monitors-table", DataTable)
+        table.add_columns("Name", "Type", "Status", "Enabled", "Last Check", "Message")
+        table.zebra_stripes = True
+        table.cursor_type = "row"
+        self._refresh_table()
+
+    def _refresh_table(self) -> None:
+        if not self.config:
+            return
+
+        table = self.query_one("#monitors-table", DataTable)
+        table.clear()
+
+        for monitor in self.config.monitors:
+            result = self._results.get(monitor.name, {})
+            status = result.get("status", "?")
+            last_check = result.get("last_check", "-")
+            message = result.get("message", "")
+
+            table.add_row(
+                monitor.name,
+                monitor.monitor_type,
+                status,
+                "Yes" if monitor.enabled else "No",
+                last_check,
+                message[:50],
+            )
+
+    def _update_status_bar(self) -> None:
+        if not self.config:
+            return
+        bar = self.query_one("#status-bar", Label)
+        hostname_display = f" ({self.config.hostname})" if self.config.hostname else ""
+        bar.update(
+            f"{hostname_display}Push URL: {self.config.push_url} | "
+            f"Monitors: {len(self.config.monitors)} | "
+            f"Config: {self.config_mgr.config_path}"
+        )
+
+    def _set_message(self, msg: str) -> None:
+        self.query_one("#message-bar", Label).update(msg)
+
+    def _get_selected_monitor(self) -> tuple[int, MonitorConfig] | None:
+        """Get the currently selected monitor and its index."""
+        table = self.query_one("#monitors-table", DataTable)
+        row_index = table.cursor_row
+        if row_index is None or row_index < 0:
+            return None
+        if row_index >= len(table.rows):
+            return None
+        row = table.get_row_at(row_index)
+        if not row:
+            return None
+        name = row[0]
+        for i, m in enumerate(self.config.monitors):
+            if m.name == name:
+                return (i, m)
+        return None
+
+    @on(DataTable.RowSelected, "#monitors-table")
+    def _row_selected(self, event: DataTable.RowSelected) -> None:
+        row_index = event.cursor_row
+        table = event.data_table
+        if row_index is None or row_index < 0 or row_index >= len(table.rows):
+            return
+        row = table.get_row_at(row_index)
+        if row:
+            name = row[0]
+            mtype = row[1]
+            self._set_message(f"Selected: {name} ({mtype}) — Press 'e' to edit, 'd' to delete")
+
+    def _run_monitor(self, monitor: MonitorConfig) -> None:
+        """Run a single monitor check."""
+        try:
+            instance = MonitorRegistry.create(monitor)
+            result = instance.check()
+
+            self._results[monitor.name] = {
+                "status": result.status.value.upper(),
+                "last_check": datetime.now().strftime("%H:%M:%S"),
+                "message": result.message,
+                "success": True,
+            }
+        except Exception as e:
+            self._results[monitor.name] = {
+                "status": "ERR",
+                "last_check": datetime.now().strftime("%H:%M:%S"),
+                "message": str(e),
+                "success": False,
+            }
+
+    def action_run_all(self) -> None:
+        if not self.config:
+            return
+        self._set_message("Running all monitors...")
+
+        results: list = []
+        for monitor in self.config.monitors:
+            if monitor.enabled:
+                self._run_monitor(monitor)
+                entry = self._results.get(monitor.name, {})
+                if entry.get("success"):
+                    status = MonitorStatus.UP if entry["status"] == "UP" else MonitorStatus.DOWN
+                    results.append(MonitorResult(
+                        monitor_name=monitor.name,
+                        monitor_type=monitor.monitor_type,
+                        status=status,
+                        message=entry["message"],
+                    ))
+
+        with UptimeKumaClient(self.config.push_url, hostname=self.config.hostname) as client:
+            if results:
+                client.report_aggregated(results)
+
+        self._refresh_table()
+        self._set_message("✓ All monitors completed")
+
+    def action_save_config(self) -> None:
+        if not self.config:
+            return
+        try:
+            # Update global config from input fields
+            self.config.push_url = self.query_one("#push-url-input", Input).value
+            self.config.hostname = self.query_one("#hostname-input", Input).value
+            interval_str = self.query_one("#interval-input", Input).value
+            self.config.default_interval = int(interval_str) if interval_str else 60
+
+            self.config_mgr.save(self.config)
+            self._update_status_bar()
+            self._set_message("✓ Configuration saved")
+        except Exception as e:
+            self._set_message(f"✗ Save failed: {e}")
+
+    def action_load_config(self) -> None:
+        self._load_config()
+        self._refresh_table()
+        self._set_message("✓ Configuration reloaded")
+
+    def action_add_monitor(self) -> None:
+        self.app.push_screen(MonitorEditorScreen(self, is_edit=False))
+
+    def action_edit_monitor(self) -> None:
+        selected = self._get_selected_monitor()
+        if not selected:
+            self._set_message("No monitor selected. Use arrow keys to select one.")
+            return
+        idx, monitor = selected
+        self.app.push_screen(MonitorEditorScreen(self, is_edit=True, edit_index=idx))
+
+    def action_delete_monitor(self) -> None:
+        if not self.config:
+            return
+        selected = self._get_selected_monitor()
+        if not selected:
+            self._set_message("No monitor selected")
+            return
+        idx, monitor = selected
+        name = monitor.name
+        self.config.monitors.pop(idx)
+        self._refresh_table()
+        self._set_message(f"Deleted monitor: {name}")
+
+    def action_toggle_monitor(self) -> None:
+        if not self.config:
+            return
+        selected = self._get_selected_monitor()
+        if not selected:
+            self._set_message("No monitor selected")
+            return
+        idx, monitor = selected
+        monitor.enabled = not monitor.enabled
+        self._refresh_table()
+        self._set_message(f"Toggled: {monitor.name}")
