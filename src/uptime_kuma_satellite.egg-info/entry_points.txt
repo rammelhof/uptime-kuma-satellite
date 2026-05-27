@@ -1,0 +1,2 @@
+[console_scripts]
+uks = uptime_kuma_satellite.cli:app

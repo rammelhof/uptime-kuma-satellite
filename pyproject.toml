@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uptime-kuma-satellite"
+version = "0.1.0"
+description = "A cross-platform Uptime Kuma Push API satellite service"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "textual>=8.0",
+    "typer>=0.12",
+    "httpx>=0.27",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+]
+
+[project.scripts]
+uks = "uptime_kuma_satellite.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["src/uptime_kuma_satellite"]
