@@ -36,19 +36,19 @@ class MonitorEditorScreen(Screen):
             yield Label(id="dialog-title")
             yield Label(id="type-help")
 
-            yield Label("Name:")
+            yield Label("Name:", id="label-name")
             yield Input(id="name-input")
 
-            yield Label("Type:")
+            yield Label("Type:", id="label-type")
             yield Select(
                 [(t, t) for t in MonitorRegistry.list_types()],
                 id="type-select",
             )
 
-            yield Label("Interval (seconds):")
+            yield Label("Interval (seconds):", id="label-interval")
             yield Input(value="60", id="interval-input")
 
-            # Parameter fields container - visible only when type is selected
+            # Parameter fields container
             yield self._param_container
 
             with Container(id="dialog-buttons"):

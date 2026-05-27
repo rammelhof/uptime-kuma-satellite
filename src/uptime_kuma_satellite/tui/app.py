@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from textual.app import App, ComposeResult
+from textual.widgets import Static
 
 from .main_screen import MainScreen
 
@@ -44,50 +45,60 @@ class SatApp(App):
         border: solid $primary;
         background: $surface;
         padding: 1 2;
-        layout: grid;
-        grid-size: 2;
-        grid-gutter: 1 2;
+        layout: vertical;
     }
 
     #dialog-title {
         text-align: center;
         text-style: bold;
-        column-span: 2;
         margin-bottom: 1;
     }
 
     #type-help {
-        column-span: 2;
         margin-bottom: 1;
         content-align: center middle;
     }
 
-    #params-container {
-        column-span: 2;
-        border: solid $boost;
-        padding: 1 2;
-        min-height: 3;
+    #label-name, #label-type, #label-interval {
+        margin-bottom: 0;
     }
 
-    #params-container Label {
-        margin-left: 1;
-    }
-
-    #params-container Input {
-        margin-left: 1;
+    #name-input, #type-select, #interval-input {
         margin-bottom: 1;
     }
 
+    #params-container {
+        border: solid $boost;
+        padding: 1 2;
+        height: 12;
+        margin-bottom: 1;
+        layout: vertical;
+        overflow-y: auto;
+    }
+
+    #params-container > Label {
+        margin-left: 1;
+        margin-bottom: 0;
+    }
+
+    #params-container > Input {
+        margin-left: 1;
+        margin-bottom: 0;
+    }
+
     #dialog-buttons {
+        layout: horizontal;
         align: center middle;
-        column-span: 2;
-        height: auto;
-        padding: 0 1;
+        margin-top: 1;
+    }
+
+    #dialog-buttons Button {
+        width: 16;
+        margin: 0 1;
     }
 
     #editor-hint {
         text-align: center;
-        column-span: 2;
         margin-top: 1;
         padding-bottom: 1;
     }
