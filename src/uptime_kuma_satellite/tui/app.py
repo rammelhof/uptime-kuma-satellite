@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.widgets import Static
 
 from .main_screen import MainScreen
@@ -12,6 +13,10 @@ from .main_screen import MainScreen
 
 class SatApp(App):
     """Main application."""
+
+    BINDINGS = [
+        Binding("q", "quit", "Quit"),
+    ]
 
     CSS = """
     #title {
@@ -70,8 +75,8 @@ class SatApp(App):
     #params-container {
         border: solid $boost;
         padding: 1 2;
-        height: 12;
-        margin-bottom: 1;
+        height: 15;
+        margin-bottom: 0;
         layout: vertical;
         overflow-y: auto;
     }
@@ -89,7 +94,7 @@ class SatApp(App):
     #dialog-buttons {
         layout: horizontal;
         align: center middle;
-        margin-top: 1;
+        margin-top: 0;
     }
 
     #dialog-buttons Button {
@@ -99,8 +104,8 @@ class SatApp(App):
 
     #editor-hint {
         text-align: center;
-        margin-top: 1;
-        padding-bottom: 1;
+        margin-top: 0;
+        padding-bottom: 0;
     }
     """
 

@@ -14,7 +14,6 @@ from textual.screen import Screen
 from textual.widgets import (
     Button,
     DataTable,
-    Footer,
     Input,
     Label,
     Select,
@@ -56,7 +55,6 @@ class MainScreen(Screen):
             yield Label(id="status-bar")
             yield DataTable(id="monitors-table")
             yield Label(id="message-bar")
-        yield Footer()
 
     def on_mount(self) -> None:
         self._load_config()
