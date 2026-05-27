@@ -1,3 +1,8 @@
+[![PyPI license](https://img.shields.io/pypi/l/ansicolortags.svg)](https://pypi.python.org/pypi/ansicolortags/)
+[![Made by AI](https://img.shields.io/badge/Made%20by-AI-lightgrey?style=for-the-badge)](https://github.com/mefengl/made-by-ai)	
+
+
+
 # Uptime Kuma Satellite
 
 A cross-platform monitoring service that reports to [Uptime Kuma](https://github.com/louislam/uptime-kuma) via the Push API.
