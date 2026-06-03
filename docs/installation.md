@@ -36,11 +36,16 @@ uks --help
 ### Alternative: System-wide install with `--break-system-packages`
 
 ```bash
-pip3 install --break-system-packages .
+sudo pip3 install --break-system-packages .
 uks --help
 ```
 
-> **Note:** This bypasses PEP 668 protection. Fine for personal servers, but may conflict with `apt`-managed Python packages.
+> **Note about PEP 668:** Modern Linux distributions (Debian/Ubuntu ≥22.04, Fedora ≥38, Arch) mark the system Python as *externally managed*. This means:
+>
+> - `pip install --user .` **will fail** without `--break-system-packages`
+> - `pip install .` (system-wide) **will fail** without `--break-system-packages` and `sudo`
+>
+> Use `pipx` (recommended) or `--break-system-packages` as shown above.
 
 ### Alternative: Dedicated system venv
 
@@ -57,7 +62,9 @@ The service will use `/opt/uptime-kuma-satellite/bin/uks` which is stable across
 
 ```bash
 sudo dnf install python3-pip
-pip3 install --user .
+
+# Install for the current user (requires --break-system-packages on Fedora 38+)
+pip3 install --user --break-system-packages .
 ```
 
 ---
@@ -66,7 +73,9 @@ pip3 install --user .
 
 ```bash
 sudo pacman -S python-pip
-pip install --user .
+
+# Install for the current user (requires --break-system-packages on Arch with PEP 668)
+pip install --user --break-system-packages .
 ```
 
 ---
