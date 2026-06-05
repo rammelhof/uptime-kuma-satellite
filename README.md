@@ -66,10 +66,12 @@ class MyCustomMonitor(BaseMonitor):
         # Your monitoring logic here
         my_param = self.config.params.get("my_param", "default")
 
-        # Store data for template rendering (optional)
+        # Store data for template rendering — these become {variable} placeholders
+        # in custom templates (see "Template Variables" below).
         self._last_data = {
             "my_value": 42,
             "my_param": my_param,
+            "my_status": "active",
         }
 
         return MonitorResult(
@@ -86,9 +88,50 @@ class MyCustomMonitor(BaseMonitor):
 - **`type_name`**: Unique string identifier used in config to reference this monitor type.
 - **`check()`**: Called on each monitoring interval. Must return a `MonitorResult`.
 - **`validate_config()`**: Called when the monitor is created. Return a list of error strings (empty list = valid).
-- **`_last_data`**: Dict stored during `check()` and exposed via `get_template_vars()` for message template rendering.
+- **`_last_data`**: Dict stored during `check()` — keys become `{variable}` placeholders in custom templates.
 - **`MonitorResult.data`**: Extra data dict attached to the result (separate from template vars).
 - **`ping_ms`**: Optional timing field for the check duration.
+
+### Template Variables
+
+Custom monitors expose variables to message templates by populating `self._last_data` in the `check()` method. Each key in `_last_data` becomes an available `{variable}` placeholder in templates.
+
+For example, if your monitor sets:
+
+```python
+self._last_data = {
+    "my_value": 42,
+    "my_param": "production",
+}
+```
+
+Users can then reference these in their custom templates:
+
+```bash
+# Set a custom UP template for your monitor type
+uks template set -m my_custom \
+  --up "Custom monitor: my_value={my_value:.1f}, param={my_param}" \
+  --down "Custom monitor FAILED on {my_param}"
+```
+
+#### Available Template Variables
+
+All monitor templates always have access to these common variables:
+
+| Variable | Description |
+|----------|-------------|
+| `{name}` | Monitor name |
+| `{status}` | "UP" or "DOWN" |
+| `{message}` | Raw message from the monitor check |
+| `{type}` | Monitor type name |
+
+Plus any custom keys you put in `_last_data`. Templates support Python format specifiers:
+
+| Specifier | Example | Result |
+|-----------|---------|--------|
+| `{value:.1f}` | `{my_value:.1f}` | `42.0` |
+| `{value:.0f}` | `{my_value:.0f}` | `42` |
+| `{value}` | `{my_value}` | `42` |
 
 ### Built-in Monitor Types
 
@@ -107,7 +150,7 @@ class MyCustomMonitor(BaseMonitor):
 | `ping` | Check network reachability via ICMP |
 | `log_file` | Monitor log file for error patterns |
 
-See [docs/monitors.md](docs/monitors.md) for full details on each built-in monitor type.
+See [docs/monitors.md](docs/monitors.md) for full details on each built-in monitor type, including their template variables. See [docs/templates.md](docs/templates.md) for the complete template reference.
 
 ## License
 
