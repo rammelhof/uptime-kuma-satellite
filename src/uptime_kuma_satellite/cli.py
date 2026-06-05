@@ -246,6 +246,216 @@ def tui(
     app_instance.run()
 
 
+# ── Template Management ───────────────────────────────────────────────
+
+template_app = typer.Typer(
+    name="template",
+    help="Manage message templates for push notifications",
+    add_completion=False,
+)
+app.add_typer(template_app, name="template")
+
+
+@template_app.command("show")
+def template_show(
+    config: Path = typer.Option(None, "--config", "-c", help="Config file path"),
+    global_only: bool = typer.Option(False, "--global", "-g", help="Show only the global template"),
+    monitor_type: str = typer.Option(None, "--monitor", "-m", help="Show template for a specific monitor type"),
+    show_default: bool = typer.Option(False, "--default", "-d", help="Show default template for comparison"),
+) -> None:
+    """Show current template configuration."""
+    from .template import (
+        DEFAULT_GLOBAL_TEMPLATE,
+        DEFAULT_MONITOR_TEMPLATES,
+        TemplateManager,
+    )
+
+    mgr, svc_config = _get_config(config)
+    template_mgr = TemplateManager(
+        global_template=svc_config.global_template,
+        monitor_templates=svc_config.monitor_templates,
+    )
+
+    if global_only:
+        if template_mgr.global_template:
+            typer.echo("Global template (custom):")
+            typer.echo(f"  {template_mgr.global_template}")
+        else:
+            typer.echo("No global template set (using default)")
+        if show_default:
+            typer.echo(f"\nDefault global template:")
+            typer.echo(f"  {DEFAULT_GLOBAL_TEMPLATE}")
+        return
+
+    if monitor_type:
+        # Show template for a specific monitor type
+        available = MonitorRegistry.list_types()
+        if monitor_type not in available:
+            typer.echo(f"Unknown monitor type: {monitor_type}")
+            typer.echo(f"Available types: {', '.join(available)}")
+            raise typer.Exit(1)
+
+        effective = template_mgr.effective_templates
+        type_templates = effective.get(monitor_type, {})
+        has_custom = monitor_type in svc_config.monitor_templates
+
+        typer.echo(f"Template for '{monitor_type}':")
+        if has_custom:
+            typer.echo("  (custom)")
+            up_t = type_templates.get("up", "")
+            down_t = type_templates.get("down", "")
+            if up_t:
+                typer.echo(f"  UP:   {up_t}")
+            if down_t:
+                typer.echo(f"  DOWN: {down_t}")
+        else:
+            typer.echo("  (using default)")
+
+        if show_default:
+            defaults = DEFAULT_MONITOR_TEMPLATES.get(monitor_type, {})
+            typer.echo(f"\nDefault template for '{monitor_type}':")
+            default_up = defaults.get("up", "")
+            default_down = defaults.get("down", "")
+            if default_up:
+                typer.echo(f"  UP:   {default_up}")
+            if default_down:
+                typer.echo(f"  DOWN: {default_down}")
+        return
+
+    # Show all templates
+    typer.echo("=== Global Template ===")
+    if template_mgr.global_template:
+        typer.echo(f"  {template_mgr.global_template}")
+    else:
+        typer.echo("  (not set - using default)")
+    if show_default:
+        typer.echo(f"\nDefault global:")
+        typer.echo(f"  {DEFAULT_GLOBAL_TEMPLATE}")
+
+    typer.echo("\n=== Per-Monitor-Type Templates ===")
+    types_with_custom = template_mgr.get_available_monitor_types()
+    for mtype, has_custom in types_with_custom:
+        effective = template_mgr.effective_templates
+        type_templates = effective.get(mtype, {})
+        up_t = type_templates.get("up", "")
+        down_t = type_templates.get("down", "")
+        prefix = "[CUSTOM] " if has_custom else "[default]"
+        if up_t:
+            typer.echo(f"  {prefix}{mtype} UP:   {up_t}")
+        if down_t:
+            typer.echo(f"  {prefix}{mtype} DOWN: {down_t}")
+
+
+@template_app.command("set")
+def template_set(
+    config: Path = typer.Option(None, "--config", "-c", help="Config file path"),
+    global_template: str = typer.Option(None, "--global", "-g", help="Set global template string"),
+    monitor_type: str = typer.Option(None, "--monitor", "-m", help="Monitor type to set template for"),
+    up_template: str = typer.Option(None, "--up", help="Set UP status template for monitor type"),
+    down_template: str = typer.Option(None, "--down", help="Set DOWN status template for monitor type"),
+) -> None:
+    """Set a template (global or per-monitor-type)."""
+    mgr, svc_config = _get_config(config)
+
+    if global_template is not None:
+        svc_config.global_template = global_template
+        typer.echo(f"✓ Global template set")
+
+    if monitor_type:
+        available = MonitorRegistry.list_types()
+        if monitor_type not in available:
+            typer.echo(f"Unknown monitor type: {monitor_type}")
+            typer.echo(f"Available types: {', '.join(available)}")
+            raise typer.Exit(1)
+
+        if up_template is None and down_template is None:
+            typer.echo("Specify at least --up or --down for monitor type templates")
+            raise typer.Exit(1)
+
+        # Initialize monitor_templates if needed
+        if svc_config.monitor_templates is None:
+            svc_config.monitor_templates = {}
+
+        if monitor_type not in svc_config.monitor_templates:
+            svc_config.monitor_templates[monitor_type] = {}
+
+        if up_template is not None:
+            svc_config.monitor_templates[monitor_type]["up"] = up_template
+            typer.echo(f"✓ Template for '{monitor_type}' UP set")
+        if down_template is not None:
+            svc_config.monitor_templates[monitor_type]["down"] = down_template
+            typer.echo(f"✓ Template for '{monitor_type}' DOWN set")
+
+    mgr.save(svc_config)
+
+
+@template_app.command("reset")
+def template_reset(
+    config: Path = typer.Option(None, "--config", "-c", help="Config file path"),
+    global_only: bool = typer.Option(False, "--global", "-g", help="Reset global template to default"),
+    monitor_type: str = typer.Option(None, "--monitor", "-m", help="Reset template for a specific monitor type"),
+) -> None:
+    """Reset template(s) to defaults."""
+    mgr, svc_config = _get_config(config)
+
+    if global_only:
+        svc_config.global_template = ""
+        typer.echo("✓ Global template reset to default")
+
+    if monitor_type:
+        available = MonitorRegistry.list_types()
+        if monitor_type not in available:
+            typer.echo(f"Unknown monitor type: {monitor_type}")
+            typer.echo(f"Available types: {', '.join(available)}")
+            raise typer.Exit(1)
+
+        if svc_config.monitor_templates and monitor_type in svc_config.monitor_templates:
+            del svc_config.monitor_templates[monitor_type]
+            typer.echo(f"✓ Template for '{monitor_type}' reset to default")
+        else:
+            typer.echo(f"No custom template for '{monitor_type}' to reset")
+
+    mgr.save(svc_config)
+
+
+@template_app.command("vars")
+def template_vars(
+    config: Path = typer.Option(None, "--config", "-c", help="Config file path"),
+    monitor_type: str = typer.Argument(..., help="Monitor type to show variables for"),
+) -> None:
+    """Show available template variables for a monitor type."""
+    from .template import TEMPLATE_VAR_HELP
+
+    mgr, svc_config = _get_config(config)
+
+    available = MonitorRegistry.list_types()
+    if monitor_type not in available:
+        typer.echo(f"Unknown monitor type: {monitor_type}")
+        typer.echo(f"Available types: {', '.join(available)}")
+        raise typer.Exit(1)
+
+    typer.echo(f"Template variables for '{monitor_type}':")
+    typer.echo("")
+
+    # Common variables
+    typer.echo("  Common variables (all types):")
+    typer.echo("    {name}      - Monitor name")
+    typer.echo("    {status}    - UP or DOWN")
+    typer.echo("    {type}      - Monitor type")
+    typer.echo("    {message}   - Raw monitor message")
+
+    # Type-specific variables
+    help_text = TEMPLATE_VAR_HELP.get(monitor_type, [])
+    if help_text:
+        typer.echo("")
+        typer.echo("  Type-specific variables:")
+        # Extract just the variable names from the help text
+        var_line = help_text[0]
+        if ": " in var_line:
+            var_line = var_line.split(": ", 1)[1]
+        typer.echo(f"    {var_line}")
+
+
 # ── Service Management ─────────────────────────────────────────────────
 
 service_app = typer.Typer(

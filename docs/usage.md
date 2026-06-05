@@ -113,7 +113,29 @@ uks info service
 uks list-types
 ```
 
-## 5. Install as Service
+## 5. Customize Messages (Templates)
+
+Customize how monitor status messages appear in Uptime Kuma using templates:
+
+```bash
+# Show all current templates
+uks template show
+
+# Set a custom global aggregated message
+uks template set -g "{hostname}: {up}/{total} monitors UP"
+
+# Customize per-monitor-type messages
+uks template set -m cpu_usage \
+  --up "CPU OK: {cpu_usage:.1f}% ({num_cores} cores)" \
+  --down "CPU ALERT: {cpu_usage:.1f}% exceeds threshold!"
+
+# See available variables for a monitor type
+uks template vars cpu_usage
+```
+
+> See [docs/templates.md](../templates.md) for full template documentation.
+
+## 6. Install as Service
 
 ```bash
 # Install as a system service (auto-starts on boot)
@@ -128,7 +150,7 @@ sudo uks service uninstall
 
 > See [docs/service.md](../service.md) for platform-specific service management details.
 
-## 6. Monitor Type Info
+## 7. Monitor Type Info
 
 ```bash
 # View details about a specific monitor type

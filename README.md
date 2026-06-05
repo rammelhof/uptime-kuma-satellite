@@ -8,6 +8,7 @@ A cross-platform monitoring service that reports to [Uptime Kuma](https://github
 ## Features
 
 - **CLI & TUI**: Configure and manage monitors via command line or interactive terminal UI
+- **Customizable Templates**: Customize message formats for push notifications via CLI or TUI
 - **Extensible Monitor Plugins**: Easy to add new monitor types
 - **Cross-Platform**: Works on Linux, macOS, and Windows
 - **System Service**: Install as a background service on all platforms (systemd, launchd, Windows)
@@ -23,6 +24,7 @@ A cross-platform monitoring service that reports to [Uptime Kuma](https://github
 | **Service Management** | [docs/service.md](docs/service.md) |
 | **Configuration** | [docs/configuration.md](docs/configuration.md) |
 | **CLI Reference** | [docs/cli-reference.md](docs/cli-reference.md) |
+| **Message Templates** | [docs/templates.md](docs/templates.md) |
 | **Development** | [docs/development.md](docs/development.md) |
 | **Windows Setup** | [docs/windows.md](docs/windows.md) |
 

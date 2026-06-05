@@ -22,18 +22,24 @@ uks setup -c /path/to/custom/config.yaml -u "http://your-uptime-kuma/api/push/YO
 push_url: http://your-uptime-kuma/api/push/YOUR_API_KEY
 hostname: my-server
 default_interval: 60
+templates:
+  global_template: "{hostname}: {up}/{total} monitors UP"
+  monitor_templates:
+    cpu_usage:
+      up: "CPU OK: {cpu_usage:.1f}%"
+      down: "CPU ALERT: {cpu_usage:.1f}%!"
+    ping:
+      up: "Pinging {ping_host}: {ping_avg_ms:.0f}ms"
 monitors:
   - name: root-disk
     type: disk_space
     enabled: true
-    interval: 300
     params:
       path: /
       min_percent: 10
   - name: web-service
     type: service
     enabled: true
-    interval: 60
     params:
       host: localhost
       port: 8080
@@ -47,6 +53,15 @@ monitors:
 | `push_url` | Uptime Kuma Push API URL (required) | — |
 | `hostname` | Hostname reported to Uptime Kuma | system hostname |
 | `default_interval` | Default interval in seconds for monitors | 60 |
+
+### Template Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `templates.global_template` | Format string for aggregated push messages | See [templates](../templates.md) |
+| `templates.monitor_templates` | Per-monitor-type UP/DOWN templates | See [templates](../templates.md) |
+
+The `templates` section is optional. If omitted, default templates are used.
 
 ## Monitor Config Options
 
@@ -69,7 +84,7 @@ It's recommended to use the CLI to manage your config rather than editing the YA
 uks setup -u "http://your-uptime-kuma/api/push/YOUR_API_KEY"
 
 # Add a monitor
-uks add-monitor -n "root-disk" -t disk_space -i 300 \
+uks add-monitor -n "root-disk" -t disk_space \
   --params '{"path": "/", "min_percent": 10}'
 
 # List current config
@@ -78,3 +93,27 @@ uks list-monitors
 # Remove a monitor
 uks remove-monitor -n "old-monitor"
 ```
+
+### Managing Templates via CLI
+
+```bash
+# Show all templates
+uks template show
+
+# Set a global template
+uks template set -g "{hostname}: {up}/{total} monitors UP"
+
+# Set per-monitor templates
+uks template set -m cpu_usage \
+  --up "CPU OK: {cpu_usage:.1f}%" \
+  --down "CPU HIGH: {cpu_usage:.1f}%!"
+
+# Show available variables for a type
+uks template vars cpu_usage
+
+# Reset templates to defaults
+uks template reset -g
+uks template reset -m cpu_usage
+```
+
+> See [docs/templates.md](../templates.md) for full template documentation.
