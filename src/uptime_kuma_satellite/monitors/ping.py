@@ -60,6 +60,13 @@ class PingMonitor(BaseMonitor):
                                 continue
                         break
 
+                self._last_data = {
+                    "ping_host": host,
+                    "ping_avg_ms": ping_ms,
+                    "ping_count": count,
+                    "ping_timeout": timeout,
+                }
+
                 return MonitorResult(
                     monitor_name=self.config.name,
                     monitor_type=self.type_name,
@@ -68,6 +75,12 @@ class PingMonitor(BaseMonitor):
                     ping_ms=ping_ms if ping_ms > 0 else elapsed,
                 )
             else:
+                self._last_data = {
+                    "ping_host": host,
+                    "ping_avg_ms": 0.0,
+                    "ping_count": count,
+                    "ping_timeout": timeout,
+                }
                 return MonitorResult(
                     monitor_name=self.config.name,
                     monitor_type=self.type_name,
@@ -78,6 +91,12 @@ class PingMonitor(BaseMonitor):
 
         except subprocess.TimeoutExpired:
             elapsed = (time.monotonic() - start) * 1000
+            self._last_data = {
+                "ping_host": host,
+                "ping_avg_ms": 0.0,
+                "ping_count": count,
+                "ping_timeout": timeout,
+            }
             return MonitorResult(
                 monitor_name=self.config.name,
                 monitor_type=self.type_name,
@@ -87,6 +106,12 @@ class PingMonitor(BaseMonitor):
             )
         except Exception as e:
             elapsed = (time.monotonic() - start) * 1000
+            self._last_data = {
+                "ping_host": host,
+                "ping_avg_ms": 0.0,
+                "ping_count": count,
+                "ping_timeout": timeout,
+            }
             return MonitorResult(
                 monitor_name=self.config.name,
                 monitor_type=self.type_name,

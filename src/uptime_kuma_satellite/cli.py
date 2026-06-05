@@ -146,9 +146,18 @@ def run_once(
 
     from .client import UptimeKumaClient
     from .monitors import MonitorRegistry
+    from .template import TemplateManager
 
     results: list = []
-    with UptimeKumaClient(svc_config.push_url, hostname=svc_config.hostname) as client:
+    template_mgr = TemplateManager(
+        global_template=svc_config.global_template,
+        monitor_templates=svc_config.monitor_templates,
+    )
+    with UptimeKumaClient(
+        svc_config.push_url,
+        hostname=svc_config.hostname,
+        template_mgr=template_mgr,
+    ) as client:
         for monitor in svc_config.monitors:
             if not monitor.enabled:
                 typer.echo(f"⊘ {monitor.name}: disabled")
@@ -156,6 +165,7 @@ def run_once(
             try:
                 instance = MonitorRegistry.create(monitor)
                 result = instance.check()
+                result.data = instance.get_template_vars()
                 results.append(result)
                 status_icon = "✓" if result.status.value == "up" else "✗"
                 typer.echo(f"{status_icon} [{result.status.value.upper():>4}] {result.monitor_name}: {result.message}")
@@ -182,7 +192,14 @@ def run(
     typer.echo(f"Monitors: {len(svc_config.monitors)}")
     typer.echo("Press Ctrl+C to stop.")
 
-    scheduler = Scheduler(svc_config.push_url, config_path=config, default_interval=svc_config.default_interval, hostname=svc_config.hostname)
+    scheduler = Scheduler(
+        svc_config.push_url,
+        config_path=config,
+        default_interval=svc_config.default_interval,
+        hostname=svc_config.hostname,
+        global_template=svc_config.global_template,
+        monitor_templates=svc_config.monitor_templates,
+    )
     scheduler.start(svc_config.monitors)
 
     try:

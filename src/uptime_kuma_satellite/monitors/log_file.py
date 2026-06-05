@@ -39,6 +39,10 @@ class LogFileMonitor(BaseMonitor):
         path = Path(path_str)
         if not path.exists():
             elapsed = (time.monotonic() - start) * 1000
+            self._last_data = {
+                "log_path": path_str, "log_lookback_minutes": lookback_minutes,
+                "log_error_count": 0, "log_last_error": "N/A", "log_max_errors": max_errors,
+            }
             return MonitorResult(
                 monitor_name=self.config.name,
                 monitor_type=self.type_name,
@@ -70,6 +74,10 @@ class LogFileMonitor(BaseMonitor):
                         break
         except Exception as e:
             elapsed = (time.monotonic() - start) * 1000
+            self._last_data = {
+                "log_path": path_str, "log_lookback_minutes": lookback_minutes,
+                "log_error_count": 0, "log_last_error": str(e), "log_max_errors": max_errors,
+            }
             return MonitorResult(
                 monitor_name=self.config.name,
                 monitor_type=self.type_name,
@@ -79,6 +87,15 @@ class LogFileMonitor(BaseMonitor):
             )
 
         elapsed = (time.monotonic() - start) * 1000
+
+        # Store data for template rendering
+        self._last_data = {
+            "log_path": path_str,
+            "log_lookback_minutes": lookback_minutes,
+            "log_error_count": error_count,
+            "log_last_error": last_error,
+            "log_max_errors": max_errors,
+        }
 
         if error_count > 0:
             return MonitorResult(

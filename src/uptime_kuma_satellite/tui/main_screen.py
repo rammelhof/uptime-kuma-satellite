@@ -24,7 +24,9 @@ from ..config import ConfigManager
 from ..models import MonitorConfig, MonitorResult, ServiceConfig, MonitorStatus
 from ..monitors import MonitorRegistry
 from ..client import UptimeKumaClient
+from ..template import TemplateManager
 from .editor_screen import MonitorEditorScreen
+from .template_editor_screen import TemplateEditorScreen
 
 logger = logging.getLogger("uks.tui")
 
@@ -48,6 +50,7 @@ class MainScreen(Screen):
         self.config_mgr = ConfigManager(config_path)
         self.config: ServiceConfig | None = None
         self._results: dict[str, dict] = {}
+        self._template_mgr: TemplateManager | None = None
 
     def compose(self) -> ComposeResult:
         with Container():
@@ -58,11 +61,14 @@ class MainScreen(Screen):
                 with Vertical(id="config-left"):
                     yield Label("Push URL:", id="label-push-url")
                     yield Input(id="push-url-input")
-                with Vertical(id="config-right"):
                     yield Label("Hostname:", id="label-hostname")
                     yield Input(id="hostname-input")
                     yield Label("Interval (seconds):", id="label-interval")
                     yield Input(value="60", id="interval-input")
+                with Vertical(id="config-right"):
+                    yield Label("", id="template-toggle-space")
+                    yield Button("Edit Templates", id="btn-edit-templates")
+                    yield Label("[dim]Click to edit global and per-type templates[/dim]", id="template-hint")
             
             yield Label(id="status-bar")
             yield DataTable(id="monitors-table")
@@ -95,6 +101,12 @@ class MainScreen(Screen):
         hostname_input.value = self.config.hostname
         interval_input = self.query_one("#interval-input", Input)
         interval_input.value = str(self.config.default_interval)
+        
+        # Initialize template manager
+        self._template_mgr = TemplateManager(
+            global_template=self.config.global_template,
+            monitor_templates=self.config.monitor_templates,
+        )
 
     def _setup_table(self) -> None:
         table = self.query_one("#monitors-table", DataTable)
@@ -173,12 +185,16 @@ class MainScreen(Screen):
         try:
             instance = MonitorRegistry.create(monitor)
             result = instance.check()
+            
+            # Get template data from the monitor instance
+            template_data = instance.get_template_vars()
 
             self._results[monitor.name] = {
                 "status": result.status.value.upper(),
                 "last_check": datetime.now().strftime("%H:%M:%S"),
                 "message": result.message,
                 "success": True,
+                "template_data": template_data,
             }
         except Exception as e:
             self._results[monitor.name] = {
@@ -186,6 +202,7 @@ class MainScreen(Screen):
                 "last_check": datetime.now().strftime("%H:%M:%S"),
                 "message": str(e),
                 "success": False,
+                "template_data": {},
             }
 
     def action_run_all(self) -> None:
@@ -205,9 +222,14 @@ class MainScreen(Screen):
                         monitor_type=monitor.monitor_type,
                         status=status,
                         message=entry["message"],
+                        data=entry.get("template_data", {}),
                     ))
 
-        with UptimeKumaClient(self.config.push_url, hostname=self.config.hostname) as client:
+        with UptimeKumaClient(
+            self.config.push_url,
+            hostname=self.config.hostname,
+            template_mgr=self._template_mgr,
+        ) as client:
             if results:
                 client.report_aggregated(results)
 
@@ -223,6 +245,12 @@ class MainScreen(Screen):
             self.config.hostname = self.query_one("#hostname-input", Input).value
             interval_str = self.query_one("#interval-input", Input).value
             self.config.default_interval = int(interval_str) if interval_str else 60
+            
+            # Sync template manager with current config state
+            self._template_mgr = TemplateManager(
+                global_template=self.config.global_template,
+                monitor_templates=self.config.monitor_templates,
+            )
 
             self.config_mgr.save(self.config)
             self._update_status_bar()
@@ -270,3 +298,12 @@ class MainScreen(Screen):
         monitor.enabled = not monitor.enabled
         self._refresh_table()
         self._set_message(f"Toggled: {monitor.name}")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-edit-templates":
+            if self.config and self._template_mgr:
+                self.app.push_screen(
+                    TemplateEditorScreen(self, self._template_mgr)
+                )
+            else:
+                self._set_message("No configuration loaded")

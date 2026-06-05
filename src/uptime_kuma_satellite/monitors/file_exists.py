@@ -32,6 +32,9 @@ class FileExistsMonitor(BaseMonitor):
         exists = path.exists()
         elapsed = (time.monotonic() - start) * 1000
 
+        # Store data for template rendering
+        self._last_data = {"file_path": path_str}
+
         if exists:
             return MonitorResult(
                 monitor_name=self.config.name,

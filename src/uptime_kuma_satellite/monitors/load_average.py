@@ -44,6 +44,10 @@ class LoadAverageMonitor(BaseMonitor):
                 load_per_core = load1 / num_cores
             except Exception as e:
                 elapsed = (time.monotonic() - start) * 1000
+                self._last_data = {
+                    "load1": 0.0, "load5": 0.0, "load15": 0.0,
+                    "load_per_core": 0.0, "num_cores": 1, "threshold": max_load,
+                }
                 return MonitorResult(
                     monitor_name=self.config.name,
                     monitor_type=self.type_name,
@@ -53,6 +57,10 @@ class LoadAverageMonitor(BaseMonitor):
                 )
         except Exception as e:
             elapsed = (time.monotonic() - start) * 1000
+            self._last_data = {
+                "load1": 0.0, "load5": 0.0, "load15": 0.0,
+                "load_per_core": 0.0, "num_cores": 1, "threshold": max_load,
+            }
             return MonitorResult(
                 monitor_name=self.config.name,
                 monitor_type=self.type_name,
@@ -62,6 +70,13 @@ class LoadAverageMonitor(BaseMonitor):
             )
 
         elapsed = (time.monotonic() - start) * 1000
+
+        # Store data for template rendering
+        self._last_data = {
+            "load1": load1, "load5": load5, "load15": load15,
+            "load_per_core": load_per_core, "num_cores": num_cores,
+            "threshold": max_load,
+        }
 
         if load1 >= max_load:
             return MonitorResult(

@@ -39,6 +39,10 @@ class DiskSpaceMonitor(BaseMonitor):
             total_gb = usage.total / (1024 ** 3)
         except Exception as e:
             elapsed = (time.monotonic() - start) * 1000
+            self._last_data = {
+                "disk_path": path_str,
+                "threshold": min_percent,
+            }
             return MonitorResult(
                 monitor_name=self.config.name,
                 monitor_type=self.type_name,
@@ -48,6 +52,15 @@ class DiskSpaceMonitor(BaseMonitor):
             )
 
         elapsed = (time.monotonic() - start) * 1000
+
+        # Store data for template rendering
+        self._last_data = {
+            "disk_path": path_str,
+            "disk_free_percent": free_percent,
+            "disk_free_gb": free_gb,
+            "disk_total_gb": total_gb,
+            "threshold": min_percent,
+        }
 
         if free_percent < min_percent:
             return MonitorResult(

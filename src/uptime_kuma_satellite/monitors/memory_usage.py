@@ -39,6 +39,7 @@ class MemoryUsageMonitor(BaseMonitor):
             swap_total_mb = swap.total / (1024 * 1024)
         except Exception as e:
             elapsed = (time.monotonic() - start) * 1000
+            self._last_data = {"threshold": max_percent}
             return MonitorResult(
                 monitor_name=self.config.name,
                 monitor_type=self.type_name,
@@ -48,6 +49,16 @@ class MemoryUsageMonitor(BaseMonitor):
             )
 
         elapsed = (time.monotonic() - start) * 1000
+
+        # Store data for template rendering
+        self._last_data = {
+            "memory_usage": used_percent,
+            "memory_used_mb": used_mb,
+            "memory_total_mb": total_mb,
+            "swap_used_mb": swap_used_mb,
+            "swap_total_mb": swap_total_mb,
+            "threshold": max_percent,
+        }
 
         if used_percent > max_percent:
             return MonitorResult(

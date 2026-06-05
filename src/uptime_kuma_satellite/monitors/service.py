@@ -38,6 +38,11 @@ class ServiceMonitor(BaseMonitor):
             sock.connect((host, port))
             sock.close()
             elapsed = (time.monotonic() - start) * 1000
+            self._last_data = {
+                "service_host": host,
+                "service_port": port,
+                "service_timeout": timeout,
+            }
             return MonitorResult(
                 monitor_name=self.config.name,
                 monitor_type=self.type_name,
@@ -47,6 +52,11 @@ class ServiceMonitor(BaseMonitor):
             )
         except Exception as e:
             elapsed = (time.monotonic() - start) * 1000
+            self._last_data = {
+                "service_host": host,
+                "service_port": port,
+                "service_timeout": timeout,
+            }
             return MonitorResult(
                 monitor_name=self.config.name,
                 monitor_type=self.type_name,

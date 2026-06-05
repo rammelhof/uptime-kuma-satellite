@@ -41,6 +41,9 @@ class ProcessMonitor(BaseMonitor):
                     pass
         except Exception as e:
             elapsed = (time.monotonic() - start) * 1000
+            self._last_data = {
+                "process_name": proc_name, "process_count": 0, "process_pids": "",
+            }
             return MonitorResult(
                 monitor_name=self.config.name,
                 monitor_type=self.type_name,
@@ -50,14 +53,22 @@ class ProcessMonitor(BaseMonitor):
             )
 
         elapsed = (time.monotonic() - start) * 1000
+        pids = ", ".join(str(p) for p in matching[:10])
+
+        # Store data for template rendering
+        self._last_data = {
+            "process_name": proc_name,
+            "process_count": len(matching),
+            "process_pids": pids,
+        }
 
         if matching:
-            pids = ", ".join(str(p) for p in matching[:5])
+            pids_short = ", ".join(str(p) for p in matching[:5])
             return MonitorResult(
                 monitor_name=self.config.name,
                 monitor_type=self.type_name,
                 status=MonitorStatus.UP,
-                message=f"Process '{proc_name}' is running ({len(matching)} match(es)). PIDs: {pids}",
+                message=f"Process '{proc_name}' is running ({len(matching)} match(es)). PIDs: {pids_short}",
                 ping_ms=elapsed,
             )
         else:

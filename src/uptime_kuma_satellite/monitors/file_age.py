@@ -34,6 +34,9 @@ class FileAgeMonitor(BaseMonitor):
 
         if not path.exists():
             elapsed = (time.monotonic() - start) * 1000
+            self._last_data = {
+                "file_path": path_str, "file_age_seconds": 0, "file_max_age": max_age,
+            }
             return MonitorResult(
                 monitor_name=self.config.name,
                 monitor_type=self.type_name,
@@ -45,6 +48,13 @@ class FileAgeMonitor(BaseMonitor):
         mtime = path.stat().st_mtime
         age_seconds = time.time() - mtime
         elapsed = (time.monotonic() - start) * 1000
+
+        # Store data for template rendering
+        self._last_data = {
+            "file_path": path_str,
+            "file_age_seconds": age_seconds,
+            "file_max_age": max_age,
+        }
 
         if age_seconds > max_age:
             return MonitorResult(

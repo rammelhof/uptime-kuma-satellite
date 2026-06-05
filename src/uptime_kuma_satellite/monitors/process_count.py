@@ -45,6 +45,11 @@ class ProcessCountMonitor(BaseMonitor):
                     pass
         except Exception as e:
             elapsed = (time.monotonic() - start) * 1000
+            self._last_data = {
+                "process_pattern": pattern, "process_count": 0,
+                "process_min": min_count, "process_max": max_count if max_count else "inf",
+                "process_pids": "",
+            }
             return MonitorResult(
                 monitor_name=self.config.name,
                 monitor_type=self.type_name,
@@ -55,6 +60,16 @@ class ProcessCountMonitor(BaseMonitor):
 
         count = len(matching_pids)
         elapsed = (time.monotonic() - start) * 1000
+        pids = ", ".join(str(p) for p in matching_pids[:10])
+
+        # Store data for template rendering
+        self._last_data = {
+            "process_pattern": pattern,
+            "process_count": count,
+            "process_min": min_count,
+            "process_max": max_count if max_count else "inf",
+            "process_pids": pids,
+        }
 
         # Check min_count
         if count < min_count:
@@ -62,7 +77,7 @@ class ProcessCountMonitor(BaseMonitor):
                 monitor_name=self.config.name,
                 monitor_type=self.type_name,
                 status=MonitorStatus.DOWN,
-                message=f"Found {count} process(es) matching '{pattern}' (minimum {min_count} expected). PIDs: {', '.join(str(p) for p in matching_pids[:10])}",
+                message=f"Found {count} process(es) matching '{pattern}' (minimum {min_count} expected). PIDs: {pids}",
                 ping_ms=elapsed,
             )
 
@@ -72,7 +87,7 @@ class ProcessCountMonitor(BaseMonitor):
                 monitor_name=self.config.name,
                 monitor_type=self.type_name,
                 status=MonitorStatus.DOWN,
-                message=f"Found {count} process(es) matching '{pattern}' (maximum {max_count} allowed). PIDs: {', '.join(str(p) for p in matching_pids[:10])}",
+                message=f"Found {count} process(es) matching '{pattern}' (maximum {max_count} allowed). PIDs: {pids}",
                 ping_ms=elapsed,
             )
 
@@ -80,6 +95,6 @@ class ProcessCountMonitor(BaseMonitor):
             monitor_name=self.config.name,
             monitor_type=self.type_name,
             status=MonitorStatus.UP,
-            message=f"Found {count} process(es) matching '{pattern}' (min={min_count}, max={max_count}). PIDs: {', '.join(str(p) for p in matching_pids[:10])}",
+            message=f"Found {count} process(es) matching '{pattern}' (min={min_count}, max={max_count}). PIDs: {pids}",
             ping_ms=elapsed,
         )

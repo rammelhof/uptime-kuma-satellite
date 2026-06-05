@@ -35,6 +35,7 @@ class CPUUsageMonitor(BaseMonitor):
             num_cores = len(per_core)
         except Exception as e:
             elapsed = (time.monotonic() - start) * 1000
+            self._last_data = {"threshold": max_percent}
             return MonitorResult(
                 monitor_name=self.config.name,
                 monitor_type=self.type_name,
@@ -46,6 +47,15 @@ class CPUUsageMonitor(BaseMonitor):
         elapsed = (time.monotonic() - start) * 1000
         min_core = min(per_core) if per_core else 0
         max_core = max(per_core) if per_core else 0
+
+        # Store data for template rendering
+        self._last_data = {
+            "cpu_usage": usage_pct,
+            "num_cores": num_cores,
+            "min_core": min_core,
+            "max_core": max_core,
+            "threshold": max_percent,
+        }
 
         if usage_pct > max_percent:
             return MonitorResult(

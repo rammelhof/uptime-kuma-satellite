@@ -19,10 +19,20 @@ logger = logging.getLogger(__name__)
 class Scheduler:
     """Runs monitors at their configured intervals and sends aggregated reports."""
 
-    def __init__(self, push_url: str, config_path: Path | None = None, default_interval: int = 60, hostname: str = "") -> None:
+    def __init__(
+        self,
+        push_url: str,
+        config_path: Path | None = None,
+        default_interval: int = 60,
+        hostname: str = "",
+        global_template: str = "",
+        monitor_templates: dict[str, dict[str, str]] | None = None,
+    ) -> None:
         self.push_url = push_url
         self.default_interval = default_interval
         self.hostname = hostname
+        self.global_template = global_template
+        self.monitor_templates = monitor_templates or {}
         self._running = False
         self._config: dict[str, MonitorConfig] = {}
         self._config_path = config_path
@@ -55,6 +65,8 @@ class Scheduler:
             self.push_url = config.push_url
             self.default_interval = config.default_interval
             self.hostname = config.hostname
+            self.global_template = config.global_template
+            self.monitor_templates = config.monitor_templates
             self._last_mtime = current_mtime
 
             logger.info("Config reloaded: %d monitors, interval=%ds, hostname=%s", len(self._config), self.default_interval, self.hostname)
@@ -72,6 +84,7 @@ class Scheduler:
             try:
                 instance = MonitorRegistry.create(monitor)
                 result = instance.check()
+                result.data = instance.get_template_vars()
                 results.append(result)
             except Exception as e:
                 logger.error("Monitor '%s' failed: %s", monitor.name, e)
@@ -122,7 +135,16 @@ class Scheduler:
         schedule_interval = self.default_interval
         logger.info("Schedule interval: %ds (global interval)", schedule_interval)
 
-        self._client = UptimeKumaClient(self.push_url, hostname=self.hostname)
+        from .template import TemplateManager
+
+        self._client = UptimeKumaClient(
+            self.push_url,
+            hostname=self.hostname,
+            template_mgr=TemplateManager(
+                global_template=self.global_template,
+                monitor_templates=self.monitor_templates,
+            ),
+        )
 
         # Run all monitors once immediately
         self._run_cycle(self._client)
@@ -148,7 +170,14 @@ class Scheduler:
                         logger.info("Schedule interval changed to %ds", schedule_interval)
 
                     self._client.close()
-                    self._client = UptimeKumaClient(self.push_url, hostname=self.hostname)
+                    self._client = UptimeKumaClient(
+                        self.push_url,
+                        hostname=self.hostname,
+                        template_mgr=TemplateManager(
+                            global_template=self.global_template,
+                            monitor_templates=self.monitor_templates,
+                        ),
+                    )
 
             self._run_cycle(self._client)
 

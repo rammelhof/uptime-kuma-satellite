@@ -22,11 +22,22 @@ class BaseMonitor(abc.ABC):
 
     def __init__(self, config: MonitorConfig) -> None:
         self.config = config
+        self._last_data: dict[str, Any] = {}
 
     @abc.abstractmethod
     def check(self) -> MonitorResult:
         """Execute the monitor check and return the result."""
         ...
+
+    def get_template_vars(self) -> dict[str, Any]:
+        """Return template variables specific to this monitor type.
+
+        Returns data computed during the last check() call.
+        Subclasses should override to provide type-specific variables
+        (e.g., {cpu_usage}, {disk_free_percent}, etc.) and set self._last_data
+        in their check() method.
+        """
+        return dict(self._last_data)
 
     def validate_config(self) -> list[str]:
         """Validate monitor-specific configuration.

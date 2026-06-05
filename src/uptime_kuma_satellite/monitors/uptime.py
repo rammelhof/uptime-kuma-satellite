@@ -37,6 +37,12 @@ class UptimeMonitor(BaseMonitor):
             boot_seconds = time.time() - psutil.boot_time()
         except Exception as e:
             elapsed = (time.monotonic() - start) * 1000
+            self._last_data = {
+                "uptime_seconds": 0,
+                "uptime_formatted": "<1m",
+                "uptime_min_seconds": min_uptime,
+                "uptime_min_formatted": self._format_seconds(min_uptime),
+            }
             return MonitorResult(
                 monitor_name=self.config.name,
                 monitor_type=self.type_name,
@@ -46,13 +52,23 @@ class UptimeMonitor(BaseMonitor):
             )
 
         elapsed = (time.monotonic() - start) * 1000
+        formatted = self._format_seconds(boot_seconds)
+        min_formatted = self._format_seconds(min_uptime)
+
+        # Store data for template rendering
+        self._last_data = {
+            "uptime_seconds": boot_seconds,
+            "uptime_formatted": formatted,
+            "uptime_min_seconds": min_uptime,
+            "uptime_min_formatted": min_formatted,
+        }
 
         if boot_seconds < min_uptime:
             return MonitorResult(
                 monitor_name=self.config.name,
                 monitor_type=self.type_name,
                 status=MonitorStatus.DOWN,
-                message=f"System uptime {self._format_seconds(boot_seconds)} is less than minimum {self._format_seconds(min_uptime)}. Possible recent reboot.",
+                message=f"System uptime {formatted} is less than minimum {min_formatted}. Possible recent reboot.",
                 ping_ms=elapsed,
             )
 
@@ -60,7 +76,7 @@ class UptimeMonitor(BaseMonitor):
             monitor_name=self.config.name,
             monitor_type=self.type_name,
             status=MonitorStatus.UP,
-            message=f"System uptime: {self._format_seconds(boot_seconds)} (minimum: {self._format_seconds(min_uptime)})",
+            message=f"System uptime: {formatted} (minimum: {min_formatted})",
             ping_ms=elapsed,
         )
 
